@@ -19,7 +19,7 @@
 /*jshint bitwise:true, curly:true, eqeqeq:true, forin:true, latedef:true, newcap:true,
          noarg:true, noempty:true, undef:true, strict:true, browser:true */
 
-// You are one of those who like to know how things work inside?
+// You are one of those who like to know how thing work inside?
 // Let me show you the cogs that make impress.js run...
 (function ( document, window ) {
     'use strict';
@@ -66,23 +66,27 @@
     // given as `el`. It runs all property names through `pfx` function to make
     // sure proper prefixed version of the property is used.
     var css = function ( el, props ) {
-        var key, pkey;
-        for ( key in props ) {
-            if ( props.hasOwnProperty(key) ) {
-                pkey = pfx(key);
-                if ( pkey !== null ) {
-                    el.style[pkey] = props[key];
-                }
-            }
-        }
+        // var key, pkey;
+        // for ( key in props ) {
+        //     if ( props.hasOwnProperty(key) ) {
+        //         pkey = pfx(key);
+        //         if ( pkey !== null ) {
+        //             el.style[pkey] = props[key];
+        //         }
+        //     }
+        // }
+
+        jQuery(el).css(props);
+
         return el;
+
     };
     
     // `toNumber` takes a value given as `numeric` parameter and tries to turn
     // it into a number. If it is not possible it returns 0 (or other value
     // given as `fallback`).
     var toNumber = function (numeric, fallback) {
-        return isNaN(numeric) ? (fallback || 0) : Number(numeric);
+        return (isNaN(numeric) || numeric === "") ? (fallback || 0) : Number(numeric);
     };
     
     // `byId` returns element with given `id` - you probably have guessed that ;)
@@ -149,8 +153,12 @@
     // `computeWindowScale` counts the scale factor between window size and size
     // defined for the presentation in the config.
     var computeWindowScale = function ( config ) {
-        var hScale = window.innerHeight / config.height,
-            wScale = window.innerWidth / config.width,
+    	var container = jQuery('#impress-container');
+
+    	// console.log('computeWindowScale', container, container.height(), container.width());
+
+        var hScale = container.height() / config.height,
+            wScale = container.width() / config.width,
             scale = hScale > wScale ? wScale : hScale;
         
         if (config.maxScale && scale > config.maxScale) {
@@ -168,18 +176,18 @@
     var body = document.body;
     
     var ua = navigator.userAgent.toLowerCase();
-    var impressSupported = 
+    var impressSupported = true;
                           // browser should support CSS 3D transtorms 
-                           ( pfx("perspective") !== null ) &&
+                           // ( pfx("perspective") !== null ) &&
                            
                           // and `classList` and `dataset` APIs
-                           ( body.classList ) &&
-                           ( body.dataset ) &&
+                           // ( body.classList ) &&
+                           // ( body.dataset ); //&&
                            
                           // but some mobile devices need to be blacklisted,
                           // because their CSS 3D support or hardware is not
                           // good enough to run impress.js properly, sorry...
-                           ( ua.search(/(iphone)|(ipod)|(android)/) === -1 );
+                           //( ua.search(/(iphone)|(ipod)|(android)/) === -1 );
     
     if (!impressSupported) {
         // we can't be sure that `classList` is supported
@@ -191,7 +199,7 @@
     
     // GLOBALS AND DEFAULTS
     
-    // This is where the root elements of all impress.js instances will be kept.
+    // This is were the root elements of all impress.js instances will be kept.
     // Yes, this means you can have more than one instance on a page, but I'm not
     // sure if it makes any sense in practice ;)
     var roots = {};
@@ -227,7 +235,8 @@
                 init: empty,
                 goto: empty,
                 prev: empty,
-                next: empty
+                next: empty,
+                setConfigVar: empty
             };
         }
         
@@ -286,9 +295,9 @@
         // `onStepLeave` is called whenever the step element is left
         // but the event is triggered only if the step is the same as
         // last entered step.
-        var onStepLeave = function (step) {
+        var onStepLeave = function (step, newStep) {
             if (lastEntered === step) {
-                triggerEvent(step, "impress:stepleave");
+                triggerEvent(step, "impress:stepleave", {next : newStep});
                 lastEntered = null;
             }
         };
@@ -313,7 +322,7 @@
                 };
             
             if ( !el.id ) {
-                el.id = "step-" + (idx + 1);
+                // el.id = "step-" + (idx + 1);
             }
             
             stepsData["impress-" + el.id] = step;
@@ -364,8 +373,8 @@
             document.documentElement.style.height = "100%";
             
             css(body, {
-                height: "100%",
-                overflow: "hidden"
+                height: "100%"
+                // overflow: "hidden"
             });
             
             var rootStyles = {
@@ -420,6 +429,13 @@
         
         // `goto` API function that moves to step given with `el` parameter (by index, id or element),
         // with a transition `duration` optionally given as second parameter.
+        
+        var setConfigVar = function (name, value) {
+			if (config){
+	        	config[name] = value;
+	        }
+        };
+
         var goto = function ( el, duration ) {
             
             if ( !initialized || !(el = getStep(el)) ) {
@@ -477,13 +493,14 @@
             // because it is likely to be caused by window resize
             if (el === activeStep) {
                 windowScale = computeWindowScale(config);
+                // console.log("configerer", config);
             }
             
             var targetScale = target.scale * windowScale;
             
             // trigger leave of currently active element (if it's not the same step again)
             if (activeStep && activeStep !== el) {
-                onStepLeave(activeStep);
+                onStepLeave(activeStep, el);
             }
             
             // Now we alter transforms of `root` and `canvas` to trigger transitions.
@@ -551,8 +568,17 @@
         // `prev` API function goes to previous step (in document order)
         var prev = function () {
             var prev = steps.indexOf( activeStep ) - 1;
+            var i = steps.length - 1;
+
             prev = prev >= 0 ? steps[ prev ] : steps[ steps.length-1 ];
             
+            
+            while (i > 0 && steps[i].classList.contains("no-step")){
+            	i--; 
+            }
+			
+			prev = prev.classList.contains("no-step") ? steps[ i ] : prev;
+
             return goto(prev);
         };
         
@@ -561,6 +587,8 @@
             var next = steps.indexOf( activeStep ) + 1;
             next = next < steps.length ? steps[ next ] : steps[ 0 ];
             
+			next = next.classList.contains("no-step") ? steps[ 0 ] : next;
+
             return goto(next);
         };
         
@@ -628,14 +656,15 @@
             goto(getElementFromHash() || steps[0], 0);
         }, false);
         
-        body.classList.add("impress-disabled");
+        //body.classList.add("impress-disabled");
         
         // store and return API for given impress.js root element
         return (roots[ "impress-root-" + rootId ] = {
             init: init,
             goto: goto,
             next: next,
-            prev: prev
+            prev: prev,
+            setConfigVar: setConfigVar
         });
 
     };
@@ -723,7 +752,7 @@
         }, false);
         
         // delegated handler for clicking on the links to presentation steps
-        document.addEventListener("click", function ( event ) {
+        $(document).on("click touchend", function ( event ) {
             // event delegation with "bubbling"
             // check if event target (or any of its parents is a link)
             var target = event.target;
@@ -745,7 +774,7 @@
                 event.stopImmediatePropagation();
                 event.preventDefault();
             }
-        }, false);
+        });
         
         // delegated handler for clicking on step elements
         document.addEventListener("click", function ( event ) {
@@ -755,7 +784,7 @@
                     (target !== document.documentElement) ) {
                 target = target.parentNode;
             }
-            
+
             if ( api.goto(target) ) {
                 event.preventDefault();
             }
@@ -763,28 +792,28 @@
         
         // touch handler to detect taps on the left and right side of the screen
         // based on awesome work of @hakimel: https://github.com/hakimel/reveal.js
-        document.addEventListener("touchstart", function ( event ) {
-            if (event.touches.length === 1) {
-                var x = event.touches[0].clientX,
-                    width = window.innerWidth * 0.3,
-                    result = null;
+        // document.getElementById("impress").addEventListener("touchstart", function ( event ) {
+        //     if (event.touches.length === 1) {
+        //         var x = event.touches[0].clientX,
+        //             width = window.innerWidth * 0.3,
+        //             result = null;
                     
-                if ( x < width ) {
-                    result = api.prev();
-                } else if ( x > window.innerWidth - width ) {
-                    result = api.next();
-                }
+        //         if ( x < width ) {
+        //             result = api.prev();
+        //         } else if ( x > window.innerWidth - width ) {
+        //             result = api.next();
+        //         }
                 
-                if (result) {
-                    event.preventDefault();
-                }
-            }
-        }, false);
+        //         if (result) {
+        //             event.preventDefault();
+        //         }
+        //     }
+        // }, false);
         
         // rescale presentation when window is resized
         window.addEventListener("resize", throttle(function () {
             // force going to active step again, to trigger rescaling
-            api.goto( document.querySelector(".step.active"), 500 );
+            api.goto( document.querySelector(".active"), 500 );
         }, 250), false);
         
     }, false);
